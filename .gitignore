@@ -1,3 +1,4 @@
-init_env_vars.sh
 .python-version
 notebooks/.ipynb_checkpoints/
+init_env_vars.sh
+
