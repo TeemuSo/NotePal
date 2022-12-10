@@ -41,7 +41,7 @@ def aai_upload_file(filename):
     # Save url for audio
     audio_url = response.json()['upload_url']
     end_t = time.time()
-    print(f"File uploaded in {(end_t - start_t) / 1000}s")
+    # print(f"File uploaded in {(end_t - start_t) / 1000}s")
     
     return audio_url
 
@@ -87,7 +87,6 @@ def aai_get_results(transcription_id):
     
     return text, summary, speaker_texts, chapters
     
-    
 def aai_transcribe(audio_url):
     json = {
         "audio_url": audio_url,
@@ -101,6 +100,12 @@ def aai_transcribe(audio_url):
     response = requests.post(TRANSCRIPTION_URL, json=json, headers=headers)
     transcription_id = response.json()['id']
     return response, transcription_id
+
+
+def get_transcripts():
+    response = requests.post(TRANSCRIPTION_URL, headers=headers)
+    return response.json()['transcripts']
+
 
 def transcribe(mic_filename, audio_upload_filename, video_upload_filename):
     # Choose, which file should we transcribe
