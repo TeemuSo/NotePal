@@ -1,4 +1,5 @@
 .python-version
 notebooks/.ipynb_checkpoints/
 init_env_vars.sh
-
+*.wav
+src/__pycache__
