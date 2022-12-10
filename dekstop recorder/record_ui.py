@@ -1,11 +1,21 @@
+from tkinter import *
 import pyaudio
 import wave
-from pydub import AudioSegment
+import sys
+import threading
 import os
+from pydub import AudioSegment
 
-def record():
+recording = False
+my_thread = None
+
+root = Tk()
+root.title("Compose-O-Matic")
+root.geometry("400x300")
+
+def play_audio():
+    global recording
     p = pyaudio.PyAudio()
-
     audio_index = -1
     for i in range(p.get_device_count()):
         dev = p.get_device_info_by_index(i)
@@ -38,7 +48,7 @@ def record():
     frames = []
     frames2 = []
 
-    for i in range(0, int(RATE / CHUNK * RECORD_SECONDS)):
+    while recording:
         data = audio_stream.read(CHUNK)
         data2 = mic_stream.read(CHUNK)
         frames.append(data)
@@ -74,3 +84,35 @@ def record():
     overlay = audio.overlay(mic, position=0)
     # export output to file
     file_handle = overlay.export(WAVE_OUTPUT_FILENAME, format="wav")
+
+# --- functions ---
+
+def press_button_play():
+    global recording
+    global my_thread
+
+    if not recording:
+        recording = True
+        record_label.config(text="Recording...")
+        my_thread = threading.Thread(target=play_audio)
+        my_thread.start()
+
+def press_button_stop():
+    global recording
+    global my_thread
+
+    if recording:
+        recording = False
+        record_label.config(text="Recording ready")
+
+button_start = Button(root, text="PLAY", command=press_button_play)
+button_start.place(x=50, y=50)
+
+button_stop = Button(root, text="STOP", command=press_button_stop)
+button_stop.place(x=50, y=150)
+
+record_label = Label(root, text="")
+record_label.place(x=100, y=100)
+
+
+root.mainloop()
