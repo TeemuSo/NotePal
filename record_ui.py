@@ -23,20 +23,23 @@ root.geometry("400x300")
 def record_audio():
     global recording
     p = pyaudio.PyAudio()
-    audio_index = -1
+    system_audio = False
     for i in range(p.get_device_count()):
         dev = p.get_device_info_by_index(i)
         if (dev['name'] == 'Stereo Mix (Realtek(R) Audio)' and dev['hostApi'] == 0):
             audio_index = dev['index']
+            system_audio = False
 
-    assert audio_index != -1, "Stereo Mix device not found. Enable Stereo Mix in audio settings."
+    if not system_audio:
+        print("Stereo Mix device not found. System audio not available, continuing with microphone audio only. You can Enable Stereo Mix in audio settings.")
 
-    audio_stream = p.open(format = FORMAT,
-                    channels = CHANNELS,
-                    rate = RATE,
-                    input = True,
-                    input_device_index=audio_index,
-                    frames_per_buffer = CHUNK)
+    if system_audio:
+        audio_stream = p.open(format = FORMAT,
+                        channels = CHANNELS,
+                        rate = RATE,
+                        input = True,
+                        input_device_index=audio_index,
+                        frames_per_buffer = CHUNK)
 
     mic_stream = p.open(format = FORMAT,
                     channels = CHANNELS,
@@ -49,25 +52,27 @@ def record_audio():
     frames2 = []
 
     while recording:
-        data = audio_stream.read(CHUNK)
+        if system_audio:
+            data = audio_stream.read(CHUNK)
+            frames.append(data)
         data2 = mic_stream.read(CHUNK)
-        frames.append(data)
         frames2.append(data2)
 
     print("* done recording")
-
-    audio_stream.stop_stream()
+    if system_audio:
+        audio_stream.stop_stream()
+        audio_stream.close()
     mic_stream.stop_stream()
-    audio_stream.close()
     mic_stream.close()
     p.terminate()
 
-    wf = wave.open('audio.wav', 'wb')
-    wf.setnchannels(CHANNELS)
-    wf.setsampwidth(p.get_sample_size(FORMAT))
-    wf.setframerate(RATE)
-    wf.writeframes(b''.join(frames))
-    wf.close()
+    if system_audio:
+        wf = wave.open('audio.wav', 'wb')
+        wf.setnchannels(CHANNELS)
+        wf.setsampwidth(p.get_sample_size(FORMAT))
+        wf.setframerate(RATE)
+        wf.writeframes(b''.join(frames))
+        wf.close()
 
     wf = wave.open('mic.wav', 'wb')
     wf.setnchannels(CHANNELS)
@@ -76,14 +81,18 @@ def record_audio():
     wf.writeframes(b''.join(frames2))
     wf.close()
 
-    audio = AudioSegment.from_file("audio.wav", format="wav")
+    if system_audio:
+        audio = AudioSegment.from_file("audio.wav", format="wav")
+        os.remove('audio.wav')
     mic = AudioSegment.from_file("mic.wav", format="wav")
-    os.remove('audio.wav')
     os.remove('mic.wav')
 
-    overlay = audio.overlay(mic, position=0)
+    if system_audio:
+        file = audio.overlay(mic, position=0)
+    else:
+        file = mic
     # export output to file
-    file_handle = overlay.export(WAVE_OUTPUT_FILENAME, format="wav")
+    file_handle = file.export(WAVE_OUTPUT_FILENAME, format="wav")
 
 
 def send_audio_to_server():
@@ -111,7 +120,7 @@ def press_button_stop():
 
 
 
-button_start = Button(root, text="PLAY", command=press_button_play)
+button_start = Button(root, text="RECORD", command=press_button_play)
 button_start.place(x=50, y=50)
 
 button_stop = Button(root, text="STOP", command=press_button_stop)
