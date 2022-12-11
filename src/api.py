@@ -112,7 +112,10 @@ def aai_transcribe(audio_url):
 #### GET
 ################################
 def get_transcripts():
-    response = requests.get(TRANSCRIPTION_URL, headers=headers)
+    response = requests.get(TRANSCRIPTION_URL, headers={
+        "authorization": ASSEMBLYAI_APIKEY,
+        "content-type": "application/json"
+    }, params={"limit": "20"})
     return response.json()['transcripts']
 
 def get_transcript_results(transcript):
