@@ -5,3 +5,4 @@ init_env_vars.sh
 src/__pycache__
 data/*
 .env
+test_data
