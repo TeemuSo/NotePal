@@ -1,5 +1,9 @@
 # NotePal
 
+## Demo link
+
+https://2a769438435b72eb.gradio.app
+
 ## Inspiration
 
 Note-taking in work meetings is often dismissed. Taking notes during seminars or lectures can be frustrating, as you are supposed to also pay attention to the lecturer. We wanted to automate the note taking intelligently, as the latest technologies enable great quality.
@@ -27,3 +31,4 @@ We learned important lessons from integrating external APIs and storing cross-se
 ## What's next for NotePal
 
 NotePal has the possibility to be The central platform, where any device can be integrated to. We have phone application, desktop application, and web application that are coming up.
+
