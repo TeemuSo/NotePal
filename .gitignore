@@ -6,3 +6,4 @@ src/__pycache__
 data/*
 .env
 test_data
+*.p
