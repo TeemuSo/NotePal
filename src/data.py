@@ -7,7 +7,7 @@ logging.basicConfig(filename='data/usage.log',
 
 LOG_IDENTIFIER = 'data: '
 
-def write_cache(data, name):
+def write_cache(name, data):
     start_t = time.time()
     logging.info(LOG_IDENTIFIER + f"Writing cache with name: {name}")
     with open(name, 'w') as f:

@@ -4,13 +4,14 @@ import openai
 import os
 import pandas as pd
 import numpy as np
+import logging
 from dotenv import load_dotenv
 load_dotenv()
 
 ASSEMBLYAI_APIKEY = os.getenv('ASSEMBLYAI_APIKEY')
 OPENAI_APIKEY = os.getenv('OPENAI_APIKEY')
 AUDIO_UPLOAD_URL = 'https://api.assemblyai.com/v2/upload'
-TRANSCRIPTION_URL = "https://api.assemblyai.com/v2/transcript/"
+TRANSCRIPTION_URL = "https://api.assemblyai.com/v2/transcript"
 
 def TRANSCRIPTION_RESULTS_URL(
     audio_id): return f"https://api.assemblyai.com/v2/transcript/{audio_id}"
@@ -31,6 +32,14 @@ headers = {
     "content-type": "application/json"
 }
 
+
+logging.basicConfig(filename='data/usage.log',
+                    encoding='utf-8', level=logging.DEBUG)
+
+################################
+# Helper functions
+################################
+
 def yield_file_data(filename, chunk_size=5242880):
     with open(filename, 'rb') as _file:
         while True:
@@ -38,53 +47,22 @@ def yield_file_data(filename, chunk_size=5242880):
             if not data:
                 break
             yield data
-            
-def aai_upload_file(filename):
-    """Requires filename pointing to local file.
-    Returns url for accessing the """
-    start_t = time.time()
-    response = requests.post(AUDIO_UPLOAD_URL,
-                        headers=headers,
-                        data=yield_file_data(filename))
 
-    # Save url for audio
-    audio_url = response.json()['upload_url']
-    end_t = time.time()
-    # print(f"File uploaded in {(end_t - start_t) / 1000}s")
-    
-    return audio_url
-
-def openai_gpt(prompt):
-    openai.api_key = OPENAI_APIKEY
-
-    response = openai.Completion.create(
-      model="text-davinci-003",
-      prompt=prompt,
-      temperature=0.7,
-      max_tokens=256,
-      top_p=1,
-      frequency_penalty=0,
-      presence_penalty=0
-    )
-    
-    # We could ask multiple suggestions from the GPT
-    choice = response['choices'][0]
-    
-    return choice['text']
 
 def _parse_aai_results(response):
     """" Parse results that AAI returns """
     response_json = response.json()
-    text     = response_json['text']
-    summary  = response_json['summary']
+    text = response_json['text']
+    summary = response_json['summary']
     speakers = response_json['utterances']
     chapters = response_json['chapters']
-    
+
     # See how long each speaker has spoken
     speaker_durations = [(seg['speaker'], (seg['end'] - seg['start']) / 1000)
-     for seg in speakers]
- 
-    total_durations = pd.DataFrame(speaker_durations).groupby(0).sum().values # Group-by speaker, and sum the speaker durations
+                         for seg in speakers]
+
+    total_durations = pd.DataFrame(speaker_durations).groupby(
+        0).sum().values  # Group-by speaker, and sum the speaker durations
 
     # If both have spoken over 30 seconds, then add diarization
     if np.all(total_durations > 30):
@@ -94,22 +72,27 @@ def _parse_aai_results(response):
         diarization = None
     return text, summary, diarization, chapters
 
-def aai_get_results(transcription_id):
-    """Get AAI results.
+
+################################
+# Helper functions
+################################
+def openai_gpt(prompt, temperature=0.7, max_tokens=256, top_p=1, frequency_penalty=0, presence_penalty=0):
+    openai.api_key = OPENAI_APIKEY
+
+    response = openai.Completion.create(
+      model="text-davinci-003",
+      prompt=prompt,
+      temperature=temperature,
+      max_tokens=max_tokens,
+      top_p=top_p,
+      frequency_penalty=frequency_penalty,
+      presence_penalty=presence_penalty
+    )
     
-    Returns:
-        text : string 
-        """
-    endpoint = TRANSCRIPTION_RESULTS_URL(transcription_id)
-    response = requests.get(endpoint, headers=headers)
+    # We could ask multiple suggestions from the GPT
+    choice = response['choices'][0]
     
-    while response.json()['status'] != "completed":
-        time.sleep(0.5)
-        response = requests.get(endpoint, headers=headers)
-    
-    text, summary, speaker_texts, chapters = _parse_aai_results(response)
-    
-    return text, summary, speaker_texts, chapters
+    return choice['text']
     
 def aai_transcribe(audio_url):
     json = {
@@ -125,19 +108,57 @@ def aai_transcribe(audio_url):
     transcription_id = response.json()['id']
     return response, transcription_id
 
-
+################################
+#### GET
+################################
 def get_transcripts():
     response = requests.get(TRANSCRIPTION_URL, headers=headers)
     return response.json()['transcripts']
 
 def get_transcript_results(transcript):
     resource_url = transcript['resource_url']
-    results = requests.get(resource_url, headers=headers)
-    raw_text, aai_summary, diarization, chapters = _parse_aai_results(results)
-    openai_summary = openai_gpt(GPT_PROMPT + raw_text)
+    results = requests.get(resource_url, headers=headers).json()
+    return results
 
-    return raw_text, aai_summary, openai_summary, diarization, chapters
 
+def get_pending_results(transcription_id):
+    """Get AAI results.
+    
+    Returns:
+        text : string 
+        """
+    endpoint = TRANSCRIPTION_RESULTS_URL(transcription_id)
+    response = requests.get(endpoint, headers=headers)
+
+    while response.json()['status'] != "completed":
+        time.sleep(0.5)
+        response = requests.get(endpoint, headers=headers)
+
+    return response.json()
+
+
+################################
+# POST
+################################
+def aai_upload_file(filename):
+    """Requires filename pointing to local file.
+    Returns url for accessing the """
+    start_t = time.time()
+    response = requests.post(AUDIO_UPLOAD_URL,
+                             headers=headers,
+                             data=yield_file_data(filename))
+
+    # Save url for audio
+    audio_url = response.json()['upload_url']
+    end_t = time.time()
+    # print(f"File uploaded in {(end_t - start_t) / 1000}s")
+
+    return audio_url
+
+
+################################
+# Pipeline
+################################
 def transcribe(mic_filename, audio_upload_filename, video_upload_filename):
     # Choose, which file should we transcribe
     # Microphone has highest priority, incase we add both files.
