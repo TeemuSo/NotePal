@@ -2,9 +2,19 @@ import time
 import requests
 import openai
 import os
+import pandas as pd
+import numpy as np
 
 ASSEMBLYAI_APIKEY = os.getenv('ASSEMBLYAI_APIKEY')
 OPENAI_APIKEY = os.getenv('OPENAI_APIKEY')
+AUDIO_UPLOAD_URL = 'https://api.assemblyai.com/v2/upload'
+TRANSCRIPTION_URL = "https://api.assemblyai.com/v2/transcript/"
+
+def TRANSCRIPTION_RESULTS_URL(
+    audio_id): return f"https://api.assemblyai.com/v2/transcript/{audio_id}"
+
+
+GPT_PROMPT = "Summarize in markdown: \n"
 
 if ASSEMBLYAI_APIKEY:
     print(f"ASSEMBLY AI API key: {ASSEMBLYAI_APIKEY}")
@@ -12,10 +22,6 @@ if ASSEMBLYAI_APIKEY:
 if OPENAI_APIKEY:
     print(f"OPENAI API key: {OPENAI_APIKEY}")
 
-AUDIO_UPLOAD_URL = 'https://api.assemblyai.com/v2/upload'
-TRANSCRIPTION_URL = "https://api.assemblyai.com/v2/transcript"
-
-def TRANSCRIPTION_RESULTS_URL(audio_id): return f"https://api.assemblyai.com/v2/transcript/{audio_id}"
 
 headers = {
     "authorization": ASSEMBLYAI_APIKEY,
@@ -63,7 +69,28 @@ def openai_gpt(prompt):
     
     return choice['text']
 
+def _parse_aai_results(response):
+    """" Parse results that AAI returns """
+    response_json = response.json()
+    text     = response_json['text']
+    summary  = response_json['summary']
+    speakers = response_json['utterances']
+    chapters = response_json['chapters']
     
+    # See how long each speaker has spoken
+    speaker_durations = [(seg['speaker'], (seg['end'] - seg['start']) / 1000)
+     for seg in speakers]
+ 
+    total_durations = pd.DataFrame(speaker_durations).groupby(0).sum().values # Group-by speaker, and sum the speaker durations
+
+    # If both have spoken over 30 seconds, then add diarization
+    if np.all(total_durations > 30):
+        # Add speakers to the conversation
+        diarization = [f"{x['speaker']}: {x['text']}" for x in speakers]
+    else:
+        diarization = None
+    return text, summary, diarization, chapters
+
 def aai_get_results(transcription_id):
     """Get AAI results.
     
@@ -77,13 +104,7 @@ def aai_get_results(transcription_id):
         time.sleep(0.5)
         response = requests.get(endpoint, headers=headers)
     
-    response_json = response.json()
-    text     = response_json['text']
-    summary  = response_json['summary']
-    speakers = response_json['utterances']
-    chapters = response_json['chapters']
-    
-    speaker_texts = [(speaker['speaker'], speaker['text']) for speaker in speakers]
+    text, summary, speaker_texts, chapters = _parse_aai_results(response)
     
     return text, summary, speaker_texts, chapters
     
@@ -103,9 +124,16 @@ def aai_transcribe(audio_url):
 
 
 def get_transcripts():
-    response = requests.post(TRANSCRIPTION_URL, headers=headers)
+    response = requests.get(TRANSCRIPTION_URL, headers=headers)
     return response.json()['transcripts']
 
+def get_transcript_results(transcript):
+    resource_url = transcript['resource_url']
+    results = requests.get(resource_url, headers=headers)
+    raw_text, aai_summary, diarization, chapters = _parse_aai_results(results)
+    openai_summary = openai_gpt(GPT_PROMPT + raw_text)
+
+    return raw_text, aai_summary, openai_summary, diarization, chapters
 
 def transcribe(mic_filename, audio_upload_filename, video_upload_filename):
     # Choose, which file should we transcribe
@@ -121,7 +149,12 @@ def transcribe(mic_filename, audio_upload_filename, video_upload_filename):
     response, transcription_id = aai_transcribe(audio_url)
     raw_text, aai_summary, diarization, chapters = aai_get_results(transcription_id)
     
+    if diarization:
+        gpt_prompt = diarization
+    else:
+        gpt_prompt = raw_text
+        diarization = "# Couldn't diarize. Add at least 30 seconds of speech for each participant."
     # Text processing
-    openai_summary = openai_gpt("Summarize in markdown: \n" + raw_text)
+    openai_summary = openai_gpt(GPT_PROMPT + gpt_prompt)
     
     return raw_text, aai_summary, openai_summary, diarization, chapters
