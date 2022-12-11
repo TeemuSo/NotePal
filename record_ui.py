@@ -1,19 +1,26 @@
 from tkinter import *
 import pyaudio
 import wave
-import sys
 import threading
 import os
 from pydub import AudioSegment
+from src.api import aai_upload_file, aai_transcribe
+
+CHUNK = 1024
+FORMAT = pyaudio.paInt16
+CHANNELS = 2
+RATE = 44100
+WAVE_OUTPUT_FILENAME = "recording.wav"
+
 
 recording = False
 my_thread = None
 
 root = Tk()
-root.title("Compose-O-Matic")
+root.title("NotePal recorder")
 root.geometry("400x300")
 
-def play_audio():
+def record_audio():
     global recording
     p = pyaudio.PyAudio()
     audio_index = -1
@@ -23,13 +30,6 @@ def play_audio():
             audio_index = dev['index']
 
     assert audio_index != -1, "Stereo Mix device not found. Enable Stereo Mix in audio settings."
-
-    CHUNK = 1024
-    FORMAT = pyaudio.paInt16
-    CHANNELS = 2
-    RATE = 44100
-    RECORD_SECONDS = 5
-    WAVE_OUTPUT_FILENAME = "output.wav"
 
     audio_stream = p.open(format = FORMAT,
                     channels = CHANNELS,
@@ -85,7 +85,11 @@ def play_audio():
     # export output to file
     file_handle = overlay.export(WAVE_OUTPUT_FILENAME, format="wav")
 
-# --- functions ---
+
+def send_audio_to_server():
+    url = aai_upload_file(WAVE_OUTPUT_FILENAME)
+    aai_transcribe(url)
+    record_label.config(text="Recording sent to server")
 
 def press_button_play():
     global recording
@@ -94,7 +98,7 @@ def press_button_play():
     if not recording:
         recording = True
         record_label.config(text="Recording...")
-        my_thread = threading.Thread(target=play_audio)
+        my_thread = threading.Thread(target=record_audio)
         my_thread.start()
 
 def press_button_stop():
@@ -105,11 +109,16 @@ def press_button_stop():
         recording = False
         record_label.config(text="Recording ready")
 
+
+
 button_start = Button(root, text="PLAY", command=press_button_play)
 button_start.place(x=50, y=50)
 
 button_stop = Button(root, text="STOP", command=press_button_stop)
 button_stop.place(x=50, y=150)
+
+button_send = Button(root, text="SEND", command=send_audio_to_server)
+button_send.place(x=50, y=200)
 
 record_label = Label(root, text="")
 record_label.place(x=100, y=100)

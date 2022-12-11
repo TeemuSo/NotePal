@@ -4,6 +4,8 @@ import openai
 import os
 import pandas as pd
 import numpy as np
+from dotenv import load_dotenv
+load_dotenv()
 
 ASSEMBLYAI_APIKEY = os.getenv('ASSEMBLYAI_APIKEY')
 OPENAI_APIKEY = os.getenv('OPENAI_APIKEY')
@@ -15,6 +17,7 @@ def TRANSCRIPTION_RESULTS_URL(
 
 
 GPT_PROMPT = "Summarize in markdown: \n"
+
 
 if ASSEMBLYAI_APIKEY:
     print(f"ASSEMBLY AI API key: {ASSEMBLYAI_APIKEY}")
