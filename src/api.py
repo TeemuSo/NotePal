@@ -121,6 +121,7 @@ def get_transcript_results(transcript):
     return results
 
 
+
 def get_pending_results(transcription_id):
     """Get AAI results.
     
@@ -178,6 +179,7 @@ def transcribe(mic_filename, audio_upload_filename, video_upload_filename):
     else:
         gpt_prompt = raw_text
         diarization = "# Couldn't diarize. Add at least 30 seconds of speech for each participant."
+
     # Text processing
     openai_summary = openai_gpt(GPT_PROMPT + gpt_prompt)
     
