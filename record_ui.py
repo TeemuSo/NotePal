@@ -28,7 +28,7 @@ def record_audio():
         dev = p.get_device_info_by_index(i)
         if (dev['name'] == 'Stereo Mix (Realtek(R) Audio)' and dev['hostApi'] == 0):
             audio_index = dev['index']
-            system_audio = False
+            system_audio = True
 
     if not system_audio:
         print("Stereo Mix device not found. System audio not available, continuing with microphone audio only. You can Enable Stereo Mix in audio settings.")
